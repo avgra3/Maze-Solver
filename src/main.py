@@ -1,7 +1,16 @@
 from tkinter import Tk, BOTH, Canvas
-
-HEIGHT = 800
-WIDTH = 600
+from constants import (
+    HEIGHT,
+    WIDTH,
+    TITLE,
+    MAZE_TOP_LEFT,
+    CELL_SIZE_X,
+    CELL_SIZE_Y,
+    MAX_ROWS,
+    MAX_COLUMNS,
+    MAX_SLEEP_TIME,
+)
+import time
 
 
 class Point:
@@ -27,11 +36,12 @@ class Line:
 
 
 class Window:
-    def __init__(self, width: int = WIDTH, height: int = HEIGHT, title: str = None):
+    def __init__(self, width: int = WIDTH, height: int = HEIGHT, title: str = TITLE):
         self.width = width
         self.height = height
         self.__root = Tk()
         self.__root.title = title
+        self.__root.geometry(f"{self.width}x{self.height}")
         self.canvas = Canvas(self.__root)
         self.canvas.pack(fill=BOTH, expand=True)
         self.running = False
@@ -56,14 +66,14 @@ class Window:
 class Cell:
     def __init__(
         self,
+        x1: int,
+        x2: int,
+        y1: int,
+        y2: int,
         has_left_wall: bool = True,
         has_right_wall: bool = True,
         has_top_wall: bool = True,
         has_bottom_wall: bool = True,
-        x1: int = 0,
-        x2: int = 0,
-        y1: int = 0,
-        y2: int = 0,
         win: Window = None,
     ):
         self.has_left_wall = has_left_wall
@@ -76,6 +86,12 @@ class Cell:
         self._y2 = y2
         self._win = win
 
+    def __repr__(self):
+        class_name = "Cell"
+        return (
+            f"{class_name}=(x1={self._x1}, y1={self._y1}, x2={self._y2}, y2={self._y2})"
+        )
+
     def draw(self):
         if self.has_left_wall:
             self._win.canvas.create_line(self._x1, self._y1, self._x1, self._y2)
@@ -86,24 +102,91 @@ class Cell:
         if self.has_bottom_wall:
             self._win.canvas.create_line(self._x1, self._y2, self._x2, self._y2)
 
+    def draw_move(self, to_cell, undo: bool = False):
+        color = "gray"
+        if undo is False:
+            color = "red"
+        center_current = Point(x=(self._x1 + self._x2) / 2, y=(self._y1 + self._y2) / 2)
+        center_new = Point(
+            x=(to_cell._x1 + to_cell._x2) / 2, y=(to_cell._y1 + to_cell._y2) / 2
+        )
+
+        connection = Line(point_one=center_current, point_two=center_new)
+        connection.draw(canvas=self._win.canvas, fill_color=color)
+
+
+class Maze:
+    def __init__(
+        self,
+        x1: int,
+        y1: int,
+        num_rows: int,
+        num_cols: int,
+        cell_size_x: int,
+        cell_size_y: int,
+        win: Window = None,
+    ):
+        self.x1 = x1
+        self.y1 = y1
+        self.num_rows = num_rows
+        self.num_cols = num_cols
+        self.cell_size_x = cell_size_x
+        self.cell_size_y = cell_size_y
+        self.win = win
+
+        self._cells = []
+
+        self._create_cells()
+
+    def _create_cells(self):
+        for i in range(self.num_cols):
+            temp = []
+            for j in range(self.num_rows):
+                x_position = self.x1 + (j * self.cell_size_x)
+                y_position = self.y1 + (i * self.cell_size_y)
+                new_cell = Cell(
+                    x1=x_position,
+                    y1=y_position,
+                    x2=x_position + self.cell_size_x,
+                    y2=y_position + self.cell_size_y,
+                    win=self.win,
+                )
+                temp.append(new_cell)
+            self._cells.append(temp)
+
+        for i in range(len(self._cells)):
+            for j in range(len(self._cells[i])):
+                self._draw_cell(i, j)
+
+    def _draw_cell(self, i, j):
+        current_cell = self._cells[i][j]
+        if self.win:
+            current_cell.draw()
+            self._animate()
+
+    def _animate(self):
+        self.win.redraw()
+        time.sleep(MAX_SLEEP_TIME)
+
 
 def main():
-    win = Window()
+    win = Window(width=WIDTH, height=HEIGHT, title=TITLE)
 
-    point_one = Point(x=10, y=10)
-    point_two = Point(x=100, y=150)
-    point_three = Point(x=100, y=250)
-    point_four = Point(x=300, y=500)
+    # point_one = Point(x=10, y=10)
+    # point_two = Point(x=100, y=150)
+    # point_three = Point(x=100, y=250)
+    # point_four = Point(x=300, y=500)
 
     # line_one = Line(point_one=point_one, point_two=point_two)
     # line_two = Line(point_one=point_three, point_two=point_four)
 
-    fill_color = "red"
+    # fill_color = "red"
 
     # win.draw_line(line=line_one, fill_color=fill_color)
     # win.draw_line(line=line_two, fill_color=fill_color)
 
     # Cells
+    """
     cell_one = Cell(
         has_left_wall=True,
         has_right_wall=True,
@@ -144,6 +227,20 @@ def main():
     )
 
     cell_three.draw()
+
+    cell_one.draw_move(to_cell=cell_three)
+    cell_two.draw_move(to_cell=cell_three, undo=True)
+    """
+    # Our Maze
+    Maze(
+        x1=MAZE_TOP_LEFT[0],
+        y1=MAZE_TOP_LEFT[1],
+        num_rows=MAX_ROWS,
+        num_cols=MAX_COLUMNS,
+        cell_size_x=CELL_SIZE_X,
+        cell_size_y=CELL_SIZE_Y,
+        win=win,
+    )
 
     # Needs to be the last line
     win.wait_for_close()
