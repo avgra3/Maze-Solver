@@ -12,6 +12,7 @@ from constants import (
 )
 import time
 from typing import Union, Tuple
+import random
 
 
 class Point:
@@ -86,37 +87,37 @@ class Cell:
         self._x2 = x2
         self._y2 = y2
         self._win = win
+        self.visited = False
 
     def __repr__(self):
         class_name = "Cell"
-        return (
-            f"{class_name}=(x1={self._x1}, y1={self._y1}, x2={self._y2}, y2={self._y2})"
-        )
+        return f"{class_name}=(x1={self._x1}, y1={self._y1}, x2={self._y2}, y2={self._y2}, has_top={self.has_top_wall}, has_bottom={self.has_bottom_wall}, has_left={self.has_left_wall}, has_right={self.has_right_wall}"
 
     def draw(self):
+        no_wall_color = "red"
         if self.has_left_wall:
             self._win.canvas.create_line(self._x1, self._y1, self._x1, self._y2)
         else:
             self._win.canvas.create_line(
-                self._x1, self._y1, self._x1, self._y2, fill="white"
+                self._x1, self._y1, self._x1, self._y2, fill=no_wall_color
             )
         if self.has_right_wall:
             self._win.canvas.create_line(self._x2, self._y1, self._x2, self._y2)
         else:
             self._win.canvas.create_line(
-                self._x2, self._y1, self._x2, self._y2, fill="white"
+                self._x2, self._y1, self._x2, self._y2, fill=no_wall_color
             )
         if self.has_top_wall:
             self._win.canvas.create_line(self._x1, self._y1, self._x2, self._y1)
         else:
             self._win.canvas.create_line(
-                self._x1, self._y1, self._x2, self._y1, fill="white"
+                self._x1, self._y1, self._x2, self._y1, fill=no_wall_color
             )
         if self.has_bottom_wall:
             self._win.canvas.create_line(self._x1, self._y2, self._x2, self._y2)
         else:
             self._win.canvas.create_line(
-                self._x1, self._y2, self._x2, self._y2, fill="white"
+                self._x1, self._y2, self._x2, self._y2, fill=no_wall_color
             )
 
     def draw_move(self, to_cell, undo: bool = False):
@@ -159,7 +160,10 @@ class Maze:
         cell_size_x: int,
         cell_size_y: int,
         win: Window = None,
+        seed=None,
     ):
+        if seed is not None:
+            random.seed(seed)
         self.x1 = x1
         self.y1 = y1
         self.num_rows = num_rows
@@ -172,6 +176,9 @@ class Maze:
 
         self._create_cells()
         self._break_entrance_and_exit()
+        self._break_walls_r(i=0, j=0)
+
+        self.win.redraw()
 
     def _create_cells(self):
         for i in range(self.num_cols):
@@ -195,6 +202,7 @@ class Maze:
 
     def _draw_cell(self, i, j):
         current_cell = self._cells[i][j]
+        # print(f"Cell at ({i}, {j}) ==> {self._cells[i][j]}")
         if self.win:
             current_cell.draw()
             self._animate()
@@ -204,76 +212,112 @@ class Maze:
         time.sleep(MAX_SLEEP_TIME)
 
     def _break_entrance_and_exit(self):
-        # Will always be at the top left cell
-        # and the exit will always be at the bottom right cell
         self._cells[0][0].has_top_wall = False
         self._draw_cell(i=0, j=0)
         self._cells[-1][-1].has_bottom_wall = False
         self._draw_cell(i=-1, j=-1)
 
+    def _break_walls_r(self, i: int, j: int):
+        self._cells[i][j].visited = True
+
+        # print(f"Breaking walls at cell ({i}, {j})")
+        # print(f"Current cell walls: {self._cells[i][j].walls}")
+
+        while True:
+            # print(f"Checking for unvisited neighbors at ({i}, {j})")
+            to_visit = {}
+
+            # print(
+            #    f"Checking neighbor: N({i-1},{j}), S({i+1},{j}), E({i},{j+1}), W({i},{j-1})"
+            # )
+            # print(
+            #    f"Their visited states:",
+            #    {
+            #        "N": self._cells[i - 1][j].visited if i > 0 else "wall",
+            #        "S": (
+            #            self._cells[i + 1][j].visited
+            #           if i < self.num_rows - 1
+            #            else "wall"
+            #        ),
+            #        "E": (
+            #            self._cells[i][j + 1].visited
+            #            if j < self.num_cols - 1
+            #            else "wall"
+            #        ),
+            #        "W": self._cells[i][j - 1].visited if j > 0 else "wall",
+            #    },
+            # )
+            if i - 1 >= 0 and not self._cells[i-1][j].visited:
+                to_visit["up"] = {
+                        "coords": (i - 1, j),
+                        "cell": self._cells[i - 1][j],
+                    }
+
+            if i + 1 < len(self._cells) and not self._cells[i + 1][j].visited:
+                to_visit["down"] = {
+                        "coords": (i + 1, j),
+                        "cell": self._cells[i + 1][j],
+                    }
+            if j - 1 >= 0 and not self._cells[i][j - 1].visited:
+                to_visit["left"] = {
+                        "coords": (i, j - 1),
+                        "cell": self._cells[i][j - 1],
+                    }
+
+            if j + 1 < len(self._cells[0]) and not self._cells[i][j + 1].visited:
+                to_visit["right"] = {
+                        "coords": (i, j + 1),
+                        "cell": self._cells[i][j + 1],
+                    }
+
+            # print(f"Found {len(to_visit)} unvisited neighbors")
+            # print(f"cell ({i}, {j}) has {len(to_visit)} unvisited neighbors")
+
+            if len(to_visit) == 0:
+                #    print(f"We should be drawing at ({i}, {j})")
+                #    self._draw_cell(i=i, j=j)
+                return
+
+            random_direction = random.choice(list(to_visit.keys()))
+            new_i, new_j = to_visit[random_direction]["coords"]
+            wall_map = {
+                "up": ("top", "bottom"),
+                "down": ("bottom", "top"),
+                "left": ("left", "right"),
+                "right": ("right", "left"),
+            }
+            current_wall, next_wall = wall_map[random_direction]
+            current_cell = self._cells[i][j]
+            next_cell = self._cells[new_i][new_j]
+            if current_wall == "top":
+                current_cell.has_top_wall = False
+                next_cell.has_bottom_wall = False
+            elif current_wall == "down":
+                current_cell.has_bottom_wall = False
+                next_cell.has_top_wall = False
+            elif current_wall == "left":
+                current_cell.has_left_wall = False
+                next_cell.has_right_wall = False
+            elif current_wall == "right":
+                current_cell.has_right_wall = False
+                next_cell.has_left_wall = False
+
+            self._cells[i][j] = current_cell
+            self._cells[new_i][new_j] = next_cell
+
+            # self._cells[i][j].walls[current_wall] = False
+            # self._cells[new_i][new_j].walls[next_wall] = False
+
+            self._draw_cell(i=i, j=j)
+            self._draw_cell(i=new_i, j=new_j)
+            self._break_walls_r(i=new_i, j=new_j)
+            to_visit.pop(random_direction)
+            # print(f"Returned to ({i}, {j}) after visitng ({new_i}, {new_j})")
+
 
 def main():
     win = Window(width=WIDTH, height=HEIGHT, title=TITLE)
 
-    # point_one = Point(x=10, y=10)
-    # point_two = Point(x=100, y=150)
-    # point_three = Point(x=100, y=250)
-    # point_four = Point(x=300, y=500)
-
-    # line_one = Line(point_one=point_one, point_two=point_two)
-    # line_two = Line(point_one=point_three, point_two=point_four)
-
-    # fill_color = "red"
-
-    # win.draw_line(line=line_one, fill_color=fill_color)
-    # win.draw_line(line=line_two, fill_color=fill_color)
-
-    # Cells
-    """
-    cell_one = Cell(
-        has_left_wall=True,
-        has_right_wall=True,
-        has_top_wall=True,
-        has_bottom_wall=True,
-        x1=20,
-        x2=60,
-        y1=20,
-        y2=60,
-        win=win,
-    )
-    cell_one.draw()
-
-    cell_two = Cell(
-        has_left_wall=False,
-        has_right_wall=True,
-        has_top_wall=True,
-        has_bottom_wall=True,
-        x1=point_one.x,
-        y1=point_one.y,
-        x2=point_two.x,
-        y2=point_two.y,
-        win=win,
-    )
-
-    cell_two.draw()
-
-    cell_three = Cell(
-        has_left_wall=True,
-        has_right_wall=False,
-        has_top_wall=False,
-        has_bottom_wall=True,
-        x1=point_three.x,
-        y1=point_three.y,
-        x2=point_four.x,
-        y2=point_four.y,
-        win=win,
-    )
-
-    cell_three.draw()
-
-    cell_one.draw_move(to_cell=cell_three)
-    cell_two.draw_move(to_cell=cell_three, undo=True)
-    """
     # Our Maze
     Maze(
         x1=MAZE_TOP_LEFT[0],
@@ -283,6 +327,7 @@ def main():
         cell_size_x=CELL_SIZE_X,
         cell_size_y=CELL_SIZE_Y,
         win=win,
+        seed=0,
     )
 
     # Needs to be the last line
