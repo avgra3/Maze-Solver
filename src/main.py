@@ -177,8 +177,9 @@ class Maze:
         self._create_cells()
         self._break_entrance_and_exit()
         self._break_walls_r(i=0, j=0)
-
-        self.win.redraw()
+        self._reset_cells_visited()
+        if win is not None:
+            self.win.redraw()
 
     def _create_cells(self):
         for i in range(self.num_cols):
@@ -216,6 +217,13 @@ class Maze:
         self._draw_cell(i=0, j=0)
         self._cells[-1][-1].has_bottom_wall = False
         self._draw_cell(i=-1, j=-1)
+
+    def _reset_cells_visited(self):
+        for i in range(len(self._cells)):
+            for j in range(len(self._cells[i])):
+                current = self._cells[i][j]
+                current.visited = False
+                self._cells[i][j] = current
 
     def _break_walls_r(self, i: int, j: int):
         self._cells[i][j].visited = True
