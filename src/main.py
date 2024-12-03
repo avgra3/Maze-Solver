@@ -11,6 +11,7 @@ from constants import (
     MAX_SLEEP_TIME,
 )
 import time
+from typing import Union, Tuple
 
 
 class Point:
@@ -95,24 +96,57 @@ class Cell:
     def draw(self):
         if self.has_left_wall:
             self._win.canvas.create_line(self._x1, self._y1, self._x1, self._y2)
+        else:
+            self._win.canvas.create_line(
+                self._x1, self._y1, self._x1, self._y2, fill="white"
+            )
         if self.has_right_wall:
             self._win.canvas.create_line(self._x2, self._y1, self._x2, self._y2)
+        else:
+            self._win.canvas.create_line(
+                self._x2, self._y1, self._x2, self._y2, fill="white"
+            )
         if self.has_top_wall:
             self._win.canvas.create_line(self._x1, self._y1, self._x2, self._y1)
+        else:
+            self._win.canvas.create_line(
+                self._x1, self._y1, self._x2, self._y1, fill="white"
+            )
         if self.has_bottom_wall:
             self._win.canvas.create_line(self._x1, self._y2, self._x2, self._y2)
+        else:
+            self._win.canvas.create_line(
+                self._x1, self._y2, self._x2, self._y2, fill="white"
+            )
 
     def draw_move(self, to_cell, undo: bool = False):
         color = "gray"
         if undo is False:
             color = "red"
-        center_current = Point(x=(self._x1 + self._x2) / 2, y=(self._y1 + self._y2) / 2)
-        center_new = Point(
-            x=(to_cell._x1 + to_cell._x2) / 2, y=(to_cell._y1 + to_cell._y2) / 2
+
+        current_xy = self._calculate_center(
+            x1=self._x1, x2=self._x2, y1=self._y1, y2=self._y2
         )
+
+        new_xy = self._calculate_center(
+            x1=to_cell._x1, x2=to_cell._x2, y1=to_cell._y1, y2=to_cell._y2
+        )
+
+        center_current = Point(x=current_xy[0], y=current_xy[1])
+        center_new = Point(x=new_xy[0], y=new_xy[1])
 
         connection = Line(point_one=center_current, point_two=center_new)
         connection.draw(canvas=self._win.canvas, fill_color=color)
+
+    def _calculate_center(
+        x1: Union[int, float],
+        x2: Union[int, float],
+        y1: Union[int, float],
+        y2: Union[int, float],
+    ) -> Tuple[float, float]:
+        x = (x1 + x2) / 2
+        y = (y1 + y2) / 2
+        return (x, y)
 
 
 class Maze:
@@ -137,6 +171,7 @@ class Maze:
         self._cells = []
 
         self._create_cells()
+        self._break_entrance_and_exit()
 
     def _create_cells(self):
         for i in range(self.num_cols):
@@ -167,6 +202,14 @@ class Maze:
     def _animate(self):
         self.win.redraw()
         time.sleep(MAX_SLEEP_TIME)
+
+    def _break_entrance_and_exit(self):
+        # Will always be at the top left cell
+        # and the exit will always be at the bottom right cell
+        self._cells[0][0].has_top_wall = False
+        self._draw_cell(i=0, j=0)
+        self._cells[-1][-1].has_bottom_wall = False
+        self._draw_cell(i=-1, j=-1)
 
 
 def main():
