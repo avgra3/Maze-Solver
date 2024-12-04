@@ -9,9 +9,10 @@ from constants import (
     MAX_ROWS,
     MAX_COLUMNS,
     MAX_SLEEP_TIME,
+    SEED,
 )
 import time
-from typing import Union, Tuple
+from typing import Tuple
 import random
 
 
@@ -42,7 +43,7 @@ class Window:
         self.width = width
         self.height = height
         self.__root = Tk()
-        self.__root.title = title
+        self.__root.wm_title = title
         self.__root.geometry(f"{self.width}x{self.height}")
         self.canvas = Canvas(self.__root)
         self.canvas.pack(fill=BOTH, expand=True)
@@ -91,10 +92,21 @@ class Cell:
 
     def __repr__(self):
         class_name = "Cell"
-        return f"{class_name}=(x1={self._x1}, y1={self._y1}, x2={self._y2}, y2={self._y2}, has_top={self.has_top_wall}, has_bottom={self.has_bottom_wall}, has_left={self.has_left_wall}, has_right={self.has_right_wall}"
+        return f"{class_name}=(x1={self._x1}, y1={self._y1}, x2={self._y2}, y2={self._y2}, has_top={self.has_top_wall}, has_bottom={self.has_bottom_wall}, has_left={self.has_left_wall}, has_right={self.has_right_wall})"
+
+    def __eq__(self, other):
+        if (
+            self._x1 == other._x1
+            and self._x2 == other._x2
+            and self._y1 == other._y1
+            and self._y2 == other._y2
+            and isinstance(other, Cell)
+        ):
+            return True
+        return False
 
     def draw(self):
-        no_wall_color = "red"
+        no_wall_color = "white"
         if self.has_left_wall:
             self._win.canvas.create_line(self._x1, self._y1, self._x1, self._y2)
         else:
@@ -122,16 +134,11 @@ class Cell:
 
     def draw_move(self, to_cell, undo: bool = False):
         color = "gray"
-        if undo is False:
+        if undo is True:
             color = "red"
 
-        current_xy = self._calculate_center(
-            x1=self._x1, x2=self._x2, y1=self._y1, y2=self._y2
-        )
-
-        new_xy = self._calculate_center(
-            x1=to_cell._x1, x2=to_cell._x2, y1=to_cell._y1, y2=to_cell._y2
-        )
+        current_xy = self._calculate_center()
+        new_xy =  to_cell._calculate_center()
 
         center_current = Point(x=current_xy[0], y=current_xy[1])
         center_new = Point(x=new_xy[0], y=new_xy[1])
@@ -140,13 +147,10 @@ class Cell:
         connection.draw(canvas=self._win.canvas, fill_color=color)
 
     def _calculate_center(
-        x1: Union[int, float],
-        x2: Union[int, float],
-        y1: Union[int, float],
-        y2: Union[int, float],
+        self,
     ) -> Tuple[float, float]:
-        x = (x1 + x2) / 2
-        y = (y1 + y2) / 2
+        x = (self._x1 + self._x2) / 2
+        y = (self._y1 + self._y2) / 2
         return (x, y)
 
 
@@ -178,8 +182,86 @@ class Maze:
         self._break_entrance_and_exit()
         self._break_walls_r(i=0, j=0)
         self._reset_cells_visited()
-        if win is not None:
+        if self.win is not None:
             self.win.redraw()
+
+    def _check_boundries(self, i: int, j: int) -> None:
+        current_cell = self._cells[i][j]
+        boundries = f"Cell at=(i={i}, j={j})\nHas left_wall={current_cell.has_left_wall},\nHas right_wall={current_cell.has_right_wall},\nHas top_wall={current_cell.has_top_wall},\nHas bottom_wall={current_cell.has_bottom_wall}"
+        print(boundries)
+
+    def solve(self):
+        result = self._solve_r(i=0, j=0)
+        return result
+
+    def _solve_r(self, i: int, j: int) -> bool:
+        self._animate()
+        current = self._cells[i][j]
+        current.visited = True
+        self._cells[i][j] = current
+
+        # Prints current boundries to terminal
+        self._check_boundries(i=i, j=j)
+
+        if self._cells[-1][-1] == self._cells[i][j]:
+            return True
+
+        # Check to left
+        if (
+            j - 1 >= 0
+            and not current.has_left_wall
+            and not self._cells[i][j - 1].visited
+        ):
+            next = self._cells[i][j - 1]
+            next.visited = True
+            self._cells[i][j-1] = next
+            self._cells[i][j].draw_move(to_cell=next, undo=False)
+            if self._solve_r(i=i, j=j - 1):
+                return True
+            self._cells[i][j].draw_move(to_cell=next, undo=True)
+
+        # Check right
+        if (
+            j + 1 < len(self._cells[i])
+            and not current.has_right_wall
+            and not self._cells[i][j + 1].visited
+        ):
+            next = self._cells[i][j + 1]
+            next.visited = True
+            self._cells[i][j+1] = next
+            self._cells[i][j].draw_move(to_cell=next, undo=False)
+            if self._solve_r(i=i, j=j + 1):
+                return True
+            self._cells[i][j].draw_move(to_cell=next, undo=True)
+
+        # Check Down
+        if (
+            i + 1 < len(self._cells)
+            and not current.has_bottom_wall
+            and not self._cells[i + 1][j].visited
+        ):
+            next = self._cells[i + 1][j]
+            next.visited = True
+            self._cells[i+1][j] = next
+            self._cells[i][j].draw_move(to_cell=next, undo=False)
+            if self._solve_r(i=i + 1, j=j):
+                return True
+            self._cells[i][j].draw_move(to_cell=next, undo=True)
+
+        # Check Up
+        if (
+            i - 1 >= 0
+            and not current.has_top_wall
+            and not self._cells[i - 1][j].visited
+        ):
+            next = self._cells[i - 1][j]
+            next.visited = True
+            self._cells[i-1][j] = next
+            self._cells[i][j].draw_move(to_cell=next, undo=False)
+            if self._solve_r(i=i - 1, j=j):
+                return True
+            self._cells[i][j].draw_move(to_cell=next, undo=True)
+        return False
 
     def _create_cells(self):
         for i in range(self.num_cols):
@@ -235,55 +317,30 @@ class Maze:
             # print(f"Checking for unvisited neighbors at ({i}, {j})")
             to_visit = {}
 
-            # print(
-            #    f"Checking neighbor: N({i-1},{j}), S({i+1},{j}), E({i},{j+1}), W({i},{j-1})"
-            # )
-            # print(
-            #    f"Their visited states:",
-            #    {
-            #        "N": self._cells[i - 1][j].visited if i > 0 else "wall",
-            #        "S": (
-            #            self._cells[i + 1][j].visited
-            #           if i < self.num_rows - 1
-            #            else "wall"
-            #        ),
-            #        "E": (
-            #            self._cells[i][j + 1].visited
-            #            if j < self.num_cols - 1
-            #            else "wall"
-            #        ),
-            #        "W": self._cells[i][j - 1].visited if j > 0 else "wall",
-            #    },
-            # )
-            if i - 1 >= 0 and not self._cells[i-1][j].visited:
+            if i - 1 >= 0 and not self._cells[i - 1][j].visited:
                 to_visit["up"] = {
-                        "coords": (i - 1, j),
-                        "cell": self._cells[i - 1][j],
-                    }
+                    "coords": (i - 1, j),
+                    "cell": self._cells[i - 1][j],
+                }
 
             if i + 1 < len(self._cells) and not self._cells[i + 1][j].visited:
                 to_visit["down"] = {
-                        "coords": (i + 1, j),
-                        "cell": self._cells[i + 1][j],
-                    }
+                    "coords": (i + 1, j),
+                    "cell": self._cells[i + 1][j],
+                }
             if j - 1 >= 0 and not self._cells[i][j - 1].visited:
                 to_visit["left"] = {
-                        "coords": (i, j - 1),
-                        "cell": self._cells[i][j - 1],
-                    }
+                    "coords": (i, j - 1),
+                    "cell": self._cells[i][j - 1],
+                }
 
             if j + 1 < len(self._cells[0]) and not self._cells[i][j + 1].visited:
                 to_visit["right"] = {
-                        "coords": (i, j + 1),
-                        "cell": self._cells[i][j + 1],
-                    }
-
-            # print(f"Found {len(to_visit)} unvisited neighbors")
-            # print(f"cell ({i}, {j}) has {len(to_visit)} unvisited neighbors")
+                    "coords": (i, j + 1),
+                    "cell": self._cells[i][j + 1],
+                }
 
             if len(to_visit) == 0:
-                #    print(f"We should be drawing at ({i}, {j})")
-                #    self._draw_cell(i=i, j=j)
                 return
 
             random_direction = random.choice(list(to_visit.keys()))
@@ -313,21 +370,17 @@ class Maze:
             self._cells[i][j] = current_cell
             self._cells[new_i][new_j] = next_cell
 
-            # self._cells[i][j].walls[current_wall] = False
-            # self._cells[new_i][new_j].walls[next_wall] = False
-
             self._draw_cell(i=i, j=j)
             self._draw_cell(i=new_i, j=new_j)
             self._break_walls_r(i=new_i, j=new_j)
             to_visit.pop(random_direction)
-            # print(f"Returned to ({i}, {j}) after visitng ({new_i}, {new_j})")
 
 
 def main():
     win = Window(width=WIDTH, height=HEIGHT, title=TITLE)
 
     # Our Maze
-    Maze(
+    maze = Maze(
         x1=MAZE_TOP_LEFT[0],
         y1=MAZE_TOP_LEFT[1],
         num_rows=MAX_ROWS,
@@ -335,8 +388,14 @@ def main():
         cell_size_x=CELL_SIZE_X,
         cell_size_y=CELL_SIZE_Y,
         win=win,
-        seed=0,
+        seed=SEED,
     )
+
+    solvable = maze.solve()
+    if solvable:
+        print("The maze is solvable!")
+    else:
+        print("Unsolvable")
 
     # Needs to be the last line
     win.wait_for_close()
